@@ -136,7 +136,7 @@ const ArticleView = ({ news, lastUpdate }) => {
 };
 
 // Componente Principal da Lista
-const NewsList = ({ news, isLoading, lastUpdate, showSettings, setShowSettings, curateNews, interests, toggleInterest }) => {
+const NewsList = ({ news, isLoading, lastUpdate, showSettings, setShowSettings, curateNews, interests, toggleInterest, isLoadingMore }) => {
   const navigate = useNavigate();
 
   const openArticle = (articleId) => {
@@ -229,12 +229,14 @@ const NewsList = ({ news, isLoading, lastUpdate, showSettings, setShowSettings, 
                           <div className="flex gap-4"><Share2 className="w-4 h-4 cursor-pointer" /><Bookmark className="w-4 h-4 cursor-pointer" /></div>
                         </div>
                       </div>
-                      <div className="lg:w-5/12 order-1 lg:order-2">
-                        <div onClick={() => openArticle(item.id)} className="border border-black p-1 bg-white shadow-[10px_10px_0px_0px_rgba(0,0,0,1)] group overflow-hidden relative cursor-pointer">
-                          <img src={item.image} className="w-full transition-all duration-1000 group-hover:scale-105" />
-                          <div className="absolute bottom-2 right-2 bg-black text-white text-[8px] px-2 py-0.5 opacity-0 group-hover:opacity-100 transition-opacity">Visualizar Original</div>
+                      {item.image && (
+                        <div className="lg:w-5/12 order-1 lg:order-2">
+                          <div onClick={() => openArticle(item.id)} className="border border-black p-1 bg-white shadow-[10px_10px_0px_0px_rgba(0,0,0,1)] group overflow-hidden relative cursor-pointer">
+                            <img src={item.image} className="w-full transition-all duration-1000 group-hover:scale-105" />
+                            <div className="absolute bottom-2 right-2 bg-black text-white text-[8px] px-2 py-0.5 opacity-0 group-hover:opacity-100 transition-opacity">Visualizar Original</div>
+                          </div>
                         </div>
-                      </div>
+                      )}
                     </div>
                   </article>
                 ))}
@@ -246,9 +248,11 @@ const NewsList = ({ news, isLoading, lastUpdate, showSettings, setShowSettings, 
                       onClick={() => openArticle(item.id)}
                       className="flex flex-col group cursor-pointer"
                     >
-                      <div className="mb-6 border border-black p-1 bg-white shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] overflow-hidden h-40 group-hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] group-hover:translate-x-0.5 group-hover:translate-y-0.5 transition-all">
-                        <img src={item.image} className="w-full h-full object-cover transition-all duration-500 group-hover:scale-105" />
-                      </div>
+                      {item.image && (
+                        <div className="mb-6 border border-black p-1 bg-white shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] overflow-hidden h-40 group-hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] group-hover:translate-x-0.5 group-hover:translate-y-0.5 transition-all">
+                          <img src={item.image} className="w-full h-full object-cover transition-all duration-500 group-hover:scale-105" />
+                        </div>
+                      )}
                       <div className="flex items-center gap-2 mb-3">
                         <span className="text-[10px] font-black uppercase text-red-700 tracking-tighter">{item.category}</span>
                         <div className="h-px flex-1 bg-gray-300" />
@@ -303,6 +307,18 @@ const NewsList = ({ news, isLoading, lastUpdate, showSettings, setShowSettings, 
             </div>
           )}
         </AnimatePresence>
+
+        {isLoadingMore && (
+          <div className="py-12 text-center border-t border-gray-300 mt-12">
+            <div className="flex items-center justify-center gap-2 mb-4">
+              <RefreshCw className="w-4 h-4 animate-spin" />
+              <p className="text-[10px] uppercase font-black tracking-widest">Carregando mais notícias</p>
+            </div>
+            <div className="h-1 w-48 mx-auto bg-gray-200 rounded-full overflow-hidden">
+              <div className="h-full bg-black animate-[loading_2s_ease-in-out_infinite]" style={{ width: '30%' }}></div>
+            </div>
+          </div>
+        )}
       </main>
 
       <footer className="max-w-7xl mx-auto px-4 md:px-12 mt-20 mb-8">
@@ -323,6 +339,8 @@ const App = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [lastUpdate, setLastUpdate] = useState(new Date());
+  const [loadedSourcesCount, setLoadedSourcesCount] = useState(0);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
 
   const analyzeTrends = (allArticles) => {
     const termMap = {};
@@ -388,8 +406,10 @@ const App = () => {
                   return Math.abs(hash).toString(36);
                 };
 
+                const articleId = generateId(item.link || item.guid || Math.random().toString());
+
                 return {
-                  id: generateId(item.link || item.guid || Math.random().toString()),
+                  id: articleId,
                   title: item.title,
                   summary: (item.description || "").replace(/<[^>]*>?/gm, '').replace(/&nbsp;/g, ' ').trim().slice(0, 180) + "...",
                   content: item.content || item.description || "Conteúdo não disponível.",
@@ -399,7 +419,7 @@ const App = () => {
                   time: new Date(item.pubDate || new Date()).toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' }),
                   date: new Date(item.pubDate || new Date()).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' }).replace(/\//g, '-'),
                   link: item.link,
-                  image: imageUrl || `https://images.unsplash.com/photo-1585829365234-781fcdb5c8be?auto=format&fit=crop&q=80&w=800`,
+                  image: imageUrl || null,
                 };
               });
             } catch (e) {
@@ -475,9 +495,129 @@ const App = () => {
     }
   };
 
+  const loadMoreNews = async () => {
+    if (isLoadingMore || loadedSourcesCount >= GLOBAL_SOURCES.length) return;
+
+    setIsLoadingMore(true);
+    try {
+      const startIndex = loadedSourcesCount;
+      const endIndex = Math.min(startIndex + 2, GLOBAL_SOURCES.length); // Reduzido para 2 fontes
+      const moreSources = GLOBAL_SOURCES.slice(startIndex, endIndex);
+
+      const allResults = [];
+
+      // Processa uma fonte por vez
+      for (let i = 0; i < moreSources.length; i++) {
+        const source = moreSources[i];
+
+        try {
+          const response = await fetch(`https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(source.url)}`);
+          const data = await response.json();
+
+          if (data.status !== 'ok') {
+            console.warn(`Fonte ${source.name} falhou, pulando...`);
+            continue;
+          }
+
+          const items = data.items.map(item => {
+            let imageUrl = item.enclosure?.link || item.thumbnail || "";
+            if (!imageUrl || imageUrl.includes("feedburner")) {
+              const htmlContent = (item.description || "") + (item.content || "");
+              const imgMatch = htmlContent.match(/<img[^>]+src="([^">]+)"/);
+              if (imgMatch && imgMatch[1]) imageUrl = imgMatch[1];
+            }
+
+            const generateId = (str) => {
+              let hash = 0;
+              for (let i = 0; i < str.length; i++) {
+                const char = str.charCodeAt(i);
+                hash = ((hash << 5) - hash) + char;
+                hash = hash & hash;
+              }
+              return Math.abs(hash).toString(36);
+            };
+
+            const articleId = generateId(item.link || item.guid || Math.random().toString());
+
+            return {
+              id: articleId,
+              title: item.title,
+              summary: (item.description || "").replace(/<[^>]*>?/gm, '').replace(/&nbsp;/g, ' ').trim().slice(0, 180) + "...",
+              content: item.content || item.description || "Conteúdo não disponível.",
+              category: source.name,
+              author: item.author || source.name,
+              source: source.name,
+              time: new Date(item.pubDate || new Date()).toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' }),
+              date: new Date(item.pubDate || new Date()).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' }).replace(/\//g, '-'),
+              link: item.link,
+              image: imageUrl || null,
+            };
+          });
+
+          allResults.push(...items);
+
+          // Delay apenas entre fontes, não antes da primeira
+          if (i < moreSources.length - 1) {
+            await new Promise(r => setTimeout(r, 2000));
+          }
+        } catch (e) {
+          console.warn(`Erro ao carregar ${source.name}:`, e);
+          continue;
+        }
+      }
+
+      let flatNews = allResults;
+
+      const AD_KEYWORDS = [
+        'oferta', 'promoção', 'desconto', 'cupom', 'barato', 'preço', 'comprar',
+        'imperdível', 'liquidação', 'economize', 'custando', 'menor valor',
+        'magalu', 'amazon', 'mercado livre', 'aliexpress', 'shopee', 'casas bahia'
+      ];
+
+      flatNews = flatNews.filter(art => {
+        const contentToCheck = (art.title + " " + art.summary).toLowerCase();
+        return !AD_KEYWORDS.some(keyword => contentToCheck.includes(keyword));
+      });
+
+      const existingIds = new Set(news.map(n => n.id));
+      flatNews = flatNews.filter(n => !existingIds.has(n.id));
+
+      if (flatNews.length > 0) {
+        const analyzedNews = analyzeTrends(flatNews);
+        setNews(prevNews => [...prevNews, ...analyzedNews]);
+      }
+
+      setLoadedSourcesCount(endIndex);
+    } catch (error) {
+      console.error("Erro ao carregar mais notícias:", error);
+    } finally {
+      setIsLoadingMore(false);
+    }
+  };
+
   useEffect(() => {
     curateNews();
+    setLoadedSourcesCount(8); // Initial load uses 8 sources
   }, []);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      // Detecta quando está a 100px do fim da página
+      const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+      const scrollHeight = document.documentElement.scrollHeight;
+      const clientHeight = window.innerHeight;
+      
+      if (scrollTop + clientHeight >= scrollHeight - 100) {
+        if (!isLoadingMore && loadedSourcesCount < GLOBAL_SOURCES.length) {
+          console.log('Carregando mais notícias...', { loadedSourcesCount, total: GLOBAL_SOURCES.length });
+          loadMoreNews();
+        }
+      }
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, [isLoadingMore, loadedSourcesCount]);
 
   return (
     <div className="min-h-screen bg-[#f4f1ea] text-[#1a1a1a] font-serif relative overflow-x-hidden selection:bg-black selection:text-white pb-20">
@@ -502,6 +642,7 @@ const App = () => {
             curateNews={curateNews}
             interests={interests}
             toggleInterest={toggleInterest}
+            isLoadingMore={isLoadingMore}
           />
         } />
         <Route path="/article/:id" element={<ArticleView news={news} lastUpdate={lastUpdate} />} />
