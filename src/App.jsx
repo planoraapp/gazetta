@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
+import { Routes, Route, useNavigate, useParams } from 'react-router-dom';
 import {
   Settings,
   Sparkles,
@@ -24,7 +25,6 @@ function cn(...inputs) {
 
 // 25+ Fontes Expandidas (Brasil + Mundo)
 const GLOBAL_SOURCES = [
-  // BRASIL - Geral e Tec
   { name: "G1 Economia", url: "https://g1.globo.com/rss/g1/economia/" },
   { name: "Tecnoblog", url: "https://tecnoblog.net/feed/" },
   { name: "Canaltech", url: "https://canaltech.com.br/rss/" },
@@ -38,8 +38,6 @@ const GLOBAL_SOURCES = [
   { name: "Exame", url: "https://exame.com/feed/" },
   { name: "Gizmodo BR", url: "https://gizmodo.uol.com.br/feed/" },
   { name: "MacMagazine", url: "https://macmagazine.com.br/feed/" },
-
-  // MUNDO - Tech e Geral
   { name: "TechCrunch", url: "https://techcrunch.com/feed/" },
   { name: "The Verge", url: "https://www.theverge.com/rss/index.xml" },
   { name: "Wired", url: "https://www.wired.com/feed/rss" },
@@ -54,6 +52,271 @@ const GLOBAL_SOURCES = [
   { name: "Reuters Tech", url: "https://www.reutersagency.com/feed/?best-topics=technology&post_type=best" }
 ];
 
+// Componente de Artigo Individual
+const ArticleView = ({ news, lastUpdate }) => {
+  const { id } = useParams();
+  const navigate = useNavigate();
+  const article = news.find(n => String(n.id) === id);
+
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [id]);
+
+  if (!article) {
+    return (
+      <div className="min-h-screen bg-[#f4f1ea] flex items-center justify-center">
+        <div className="text-center">
+          <Newspaper className="w-16 h-16 mx-auto mb-4 opacity-20" />
+          <p className="text-xl font-bold">Artigo não encontrado</p>
+          <button onClick={() => navigate('/')} className="mt-4 underline hover:text-red-700">Voltar à Edição</button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-[#f4f1ea] relative">
+      <div className="paper-texture" />
+
+      <header className="sticky top-0 z-[100] bg-[#f4f1ea]/90 backdrop-blur-md border-b border-black py-4 px-4 md:px-12 flex justify-between items-center">
+        <button
+          onClick={() => navigate('/')}
+          className="flex items-center gap-2 text-[10px] font-black uppercase hover:text-red-700 transition-colors group"
+        >
+          <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
+          <span>Voltar à Edição</span>
+        </button>
+        <h2 className="newspaper-title text-2xl md:text-3xl select-none">Gazetta</h2>
+        <div className="hidden md:flex items-center gap-4 text-[9px] font-black uppercase tracking-widest opacity-60">
+          <span>{article.category}</span>
+          <span>•</span>
+          <span className="flex items-center gap-1"><Globe className="w-3 h-3" /> Cobertura Global</span>
+        </div>
+      </header>
+
+      <div className="max-w-4xl mx-auto px-4 py-20">
+        <article className="font-serif">
+          <header className="mb-12 border-b-4 border-black pb-10">
+            <div className="flex items-center gap-3 mb-4">
+              <span className="text-red-700 font-bold uppercase text-xs tracking-widest">{article.category}</span>
+              {article.isTrending && <span className="bg-black text-white px-2 py-0.5 text-[8px] font-black uppercase flex items-center gap-1"><Zap className="w-2.5 h-2.5" /> Viral</span>}
+            </div>
+            <h1 className="text-4xl md:text-7xl font-black leading-[1.05] mb-8 uppercase tracking-tighter">{article.title}</h1>
+            <div className="flex justify-between items-center text-[10px] uppercase font-bold text-gray-500 border-t border-black/10 pt-6">
+              <span className="flex items-center gap-2"><User className="w-3 h-3" /> Correspondente: {article.author}</span>
+              <span>{article.time} • Fonte: {article.source}</span>
+            </div>
+          </header>
+
+          {article.image && (
+            <div className="mb-16 border border-black p-1 bg-white shadow-[20px_20px_0px_0px_rgba(0,0,0,1)]">
+              <img src={article.image} className="w-full" alt="" />
+              <div className="mt-4 flex justify-between items-center px-4">
+                <span className="text-[8px] uppercase font-bold text-gray-400 italic">Arquivo Digital Gazetta Intelligence</span>
+                <div className="flex gap-4"><Share2 className="w-3 h-3 cursor-pointer" /><Bookmark className="w-3 h-3 cursor-pointer" /></div>
+              </div>
+            </div>
+          )}
+
+          <div
+            className="text-xl md:text-2xl leading-[1.6] text-gray-800 space-y-10 prose prose-newspaper max-w-none prose-img:hidden"
+            dangerouslySetInnerHTML={{ __html: article.content }}
+          />
+
+          <div className="mt-32 pt-16 border-t-4 border-black text-center italic opacity-40">
+            <Newspaper className="w-16 h-16 mx-auto mb-6" />
+            <p className="mb-2 text-sm font-bold not-italic font-sans uppercase tracking-[0.3em]">Gazetta Digital Intelligence</p>
+            <p>&copy; 2026 — Algoritmo de Consenso Global</p>
+            <a href={article.link} target="_blank" rel="noreferrer" className="text-[10px] uppercase font-black not-italic hover:underline mt-8 block hover:text-red-700">Verificar Documentação de Origem</a>
+          </div>
+        </article>
+      </div>
+    </div>
+  );
+};
+
+// Componente Principal da Lista
+const NewsList = ({ news, isLoading, lastUpdate, showSettings, setShowSettings, curateNews, interests, toggleInterest }) => {
+  const navigate = useNavigate();
+
+  const openArticle = (articleId) => {
+    navigate(`/article/${articleId}`);
+  };
+
+  return (
+    <>
+      <header className="max-w-7xl mx-auto px-4 md:px-12 pt-8 pb-4">
+        <div className="flex flex-col md:flex-row justify-between items-center mb-6 border-b border-black pb-2 text-[10px] md:text-xs uppercase tracking-[0.2em] font-bold">
+          <div className="flex items-center gap-4 mb-2 md:mb-0">
+            <span className="flex items-center gap-2 text-red-700 animate-pulse"><Globe className="w-3 h-3" /> Conexão Global Ativa</span>
+            <span className="hidden md:inline">|</span>
+            <span className="flex items-center gap-1">
+              <Calendar className="w-3 h-3" />
+              {lastUpdate.toLocaleDateString('pt-PT', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+            </span>
+          </div>
+          <div className="flex items-center gap-4">
+            <span className="italic font-normal lowercase tracking-normal text-sm text-gray-500">Preço: Grátis</span>
+            <span>|</span>
+            <span className="text-black font-black">Edição personalizada</span>
+          </div>
+        </div>
+
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center mb-8">
+          <h1 className="newspaper-title text-7xl md:text-[10rem] leading-none mb-2 select-none">Gazetta</h1>
+          <div className="flex items-center justify-center gap-4 md:gap-12 py-2 border-y-2 border-black mt-4">
+            <span className="hidden sm:block text-[10px] uppercase font-bold tracking-widest flex-1 text-right">Tecnologia, Economia e tudo que você quiser</span>
+            <div className="text-sm italic font-serif px-8 whitespace-nowrap">"Mundus in notitia"</div>
+            <span className="hidden sm:block text-[10px] uppercase font-bold tracking-widest flex-1 text-left">Curadoria das principais notícias do mundo</span>
+          </div>
+        </motion.div>
+
+        <div className="flex flex-wrap justify-between items-center border-b-4 border-black py-3 gap-4 mb-12">
+          <div className="flex items-center gap-3 py-1">
+            <span className="text-[10px] font-black uppercase tracking-tighter bg-black text-white px-2 py-0.5">Top Trends:</span>
+            <div className="flex gap-4 overflow-x-auto no-scrollbar max-w-[500px]">
+              {["IA", "Brasil", "Tech", "Global", "Economia"].map(t => (
+                <span key={t} className="text-[10px] font-bold uppercase opacity-60 hover:opacity-100 cursor-default">#{t}</span>
+              ))}
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <button onClick={() => setShowSettings(true)} className="flex items-center gap-2 text-xs uppercase font-black hover:scale-105 transition-transform">
+              <Settings className="w-4 h-4" /> Personalizar Temas
+            </button>
+            <button onClick={curateNews} className="flex items-center gap-2 text-xs uppercase font-black hover:scale-105 transition-transform" disabled={isLoading}>
+              <RefreshCw className={cn("w-4 h-4", isLoading && "animate-spin")} /> Re-editar Jornal
+            </button>
+          </div>
+        </div>
+      </header>
+
+      <main className="max-w-7xl mx-auto px-4 md:px-12">
+        <AnimatePresence mode="wait">
+          {isLoading && news.length === 0 ? (
+            <div className="py-40 text-center">
+              <div className="relative inline-block mb-8">
+                <Globe className="w-16 h-16 mx-auto animate-spin-slow opacity-20" />
+                <Zap className="absolute top-0 right-0 w-6 h-6 animate-pulse text-red-700" />
+              </div>
+              <div className="flex items-center justify-center gap-2">
+                <p className="text-[10px] uppercase font-black tracking-widest">Preparando Notícias</p>
+                <div className="flex gap-1">
+                  <span className="w-1 h-1 bg-black rounded-full animate-pulse" style={{ animationDelay: '0s' }}></span>
+                  <span className="w-1 h-1 bg-black rounded-full animate-pulse" style={{ animationDelay: '0.2s' }}></span>
+                  <span className="w-1 h-1 bg-black rounded-full animate-pulse" style={{ animationDelay: '0.4s' }}></span>
+                </div>
+              </div>
+              <div className="mt-6 h-1 w-64 mx-auto bg-gray-200 rounded-full overflow-hidden">
+                <div className="h-full bg-black animate-[loading_2s_ease-in-out_infinite]" style={{ width: '30%' }}></div>
+              </div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-12">
+              <div className="lg:col-span-9">
+                {news.filter(n => n.featured).map(item => (
+                  <article key={item.id} className="border-b border-gray-400 pb-12 mb-12">
+                    <div className="flex flex-col lg:flex-row gap-10">
+                      <div className="lg:w-7/12 order-2 lg:order-1">
+                        <div className="flex items-center gap-2 mb-4">
+                          <span className="bg-red-700 text-white px-3 py-1 text-[10px] font-bold uppercase tracking-widest">Manchete</span>
+                          {item.isTrending && <span className="flex items-center gap-1 text-[9px] font-black uppercase text-orange-600"><Zap className="w-3 h-3" /> Em Alta</span>}
+                        </div>
+                        <h2 onClick={() => openArticle(item.id)} className="text-4xl md:text-6xl font-black leading-[1.05] mb-6 hover:underline cursor-pointer decoration-red-700/30 decoration-4">{item.title}</h2>
+                        <p className="text-xl md:text-2xl leading-snug text-gray-800 mb-8 italic first-letter:text-6xl first-letter:font-black first-letter:float-left first-letter:mr-3 first-letter:leading-none first-letter:text-black">{item.summary}</p>
+                        <div className="flex justify-between items-center text-[10px] uppercase font-bold text-gray-600 border-t border-dotted border-gray-400 pt-6">
+                          <span className="flex items-center gap-2"><Globe className="w-3 h-3" /> {item.source} • {item.date}</span>
+                          <div className="flex gap-4"><Share2 className="w-4 h-4 cursor-pointer" /><Bookmark className="w-4 h-4 cursor-pointer" /></div>
+                        </div>
+                      </div>
+                      <div className="lg:w-5/12 order-1 lg:order-2">
+                        <div onClick={() => openArticle(item.id)} className="border border-black p-1 bg-white shadow-[10px_10px_0px_0px_rgba(0,0,0,1)] group overflow-hidden relative cursor-pointer">
+                          <img src={item.image} className="w-full transition-all duration-1000 group-hover:scale-105" />
+                          <div className="absolute bottom-2 right-2 bg-black text-white text-[8px] px-2 py-0.5 opacity-0 group-hover:opacity-100 transition-opacity">Visualizar Original</div>
+                        </div>
+                      </div>
+                    </div>
+                  </article>
+                ))}
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-10 gap-y-16">
+                  {news.filter(n => !n.featured).slice(0, 15).map((item, idx) => (
+                    <article
+                      key={item.id}
+                      onClick={() => openArticle(item.id)}
+                      className="flex flex-col group cursor-pointer"
+                    >
+                      <div className="mb-6 border border-black p-1 bg-white shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] overflow-hidden h-40 group-hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] group-hover:translate-x-0.5 group-hover:translate-y-0.5 transition-all">
+                        <img src={item.image} className="w-full h-full object-cover transition-all duration-500 group-hover:scale-105" />
+                      </div>
+                      <div className="flex items-center gap-2 mb-3">
+                        <span className="text-[10px] font-black uppercase text-red-700 tracking-tighter">{item.category}</span>
+                        <div className="h-px flex-1 bg-gray-300" />
+                      </div>
+                      <h3 className="text-xl md:text-2xl font-black leading-tight mb-4 hover:underline group-hover:text-red-900 transition-colors uppercase">{item.title}</h3>
+                      <p className="text-base leading-relaxed text-gray-700 mb-6 flex-grow">{item.summary}</p>
+                      <div className="flex justify-between items-center text-[11px] uppercase font-bold text-gray-400 pt-3 border-t border-black/10">
+                        <span>{item.source}</span>
+                        <span className="text-[10px]">{item.date}</span>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              </div>
+
+              <aside className="lg:col-span-3 space-y-12">
+                <section className="bg-white border-2 border-black p-6 relative">
+                  <h4 className="flex items-center gap-2 text-[11px] uppercase font-black tracking-widest mb-6 border-b-2 border-black pb-4">
+                    <Zap className="w-4 h-4 text-red-700" /> Buzz de Dados
+                  </h4>
+                  <div className="space-y-6">
+                    {news.slice(15, 20).map(t => (
+                      <div key={t.id} onClick={() => openArticle(t.id)} className="cursor-pointer group">
+                        <div className="flex justify-between text-[11px] font-black text-gray-400 mb-1">
+                          <span>{t.source}</span>
+                          <span className="text-red-700">ALERT</span>
+                        </div>
+                        <p className="text-base font-bold leading-snug group-hover:underline italic">"{t.title}"</p>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+
+                <section className="bg-black text-white p-6 shadow-[12px_12px_0px_0px_rgba(0,0,0,0.1)]">
+                  <h4 className="text-[11px] uppercase font-black tracking-widest mb-6 border-b border-white/20 pb-4">Análise IA: DNA</h4>
+                  <div className="space-y-5">
+                    {interests.slice(0, 4).map(i => (
+                      <div key={i} className="space-y-1">
+                        <div className="flex justify-between text-[10px] font-bold uppercase">
+                          <span>{i}</span>
+                          <span className="text-red-500">{(Math.random() * 20 + 75).toFixed(0)}%</span>
+                        </div>
+                        <div className="h-1 bg-white/10 w-full overflow-hidden">
+                          <motion.div initial={{ width: 0 }} animate={{ width: `${Math.floor(Math.random() * 40 + 60)}%` }} className="h-full bg-red-700" />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <button className="w-full mt-8 border border-white/30 py-2 text-[10px] uppercase font-black hover:bg-white hover:text-black transition-all">Ver Relatório Completo</button>
+                </section>
+              </aside>
+            </div>
+          )}
+        </AnimatePresence>
+      </main>
+
+      <footer className="max-w-7xl mx-auto px-4 md:px-12 mt-20 mb-8">
+        <div className="border-t-2 border-black pt-6 flex justify-end">
+          <span className="text-xs uppercase font-bold tracking-widest text-gray-500">
+            Desenvolvido por <span className="text-black">Planora Apps</span>
+          </span>
+        </div>
+      </footer>
+    </>
+  );
+};
+
+// Componente Principal do App
 const App = () => {
   const [interests, setInterests] = useState(["Inteligência Artificial", "Cultura Geek", "Economia Digital"]);
   const [news, setNews] = useState([]);
@@ -61,16 +324,10 @@ const App = () => {
   const [showSettings, setShowSettings] = useState(false);
   const [lastUpdate, setLastUpdate] = useState(new Date());
 
-  const [viewMode, setViewMode] = useState('list');
-  const [selectedArticle, setSelectedArticle] = useState(null);
-  const [scrollPos, setScrollPos] = useState(0);
-
-  // Sistema de Análise de Tendências (Análise de Frequência de Termos)
   const analyzeTrends = (allArticles) => {
     const termMap = {};
     const commonStopWords = ['da', 'do', 'em', 'para', 'com', 'no', 'na', 'um', 'uma', 'os', 'as', 'e', 'o', 'a', 'de'];
 
-    // Conta termos nos títulos
     allArticles.forEach(art => {
       const words = art.title.toLowerCase().split(/\W+/);
       words.forEach(word => {
@@ -80,7 +337,6 @@ const App = () => {
       });
     });
 
-    // Atribui relevância baseada na frequência dos termos
     return allArticles.map(art => {
       const words = art.title.toLowerCase().split(/\W+/);
       let score = 0;
@@ -90,7 +346,7 @@ const App = () => {
 
       return {
         ...art,
-        relevance: Math.min(100, 70 + score), // 70 base + bônus de tendência
+        relevance: Math.min(100, 70 + score),
         isTrending: score > 15
       };
     });
@@ -99,9 +355,7 @@ const App = () => {
   const curateNews = async () => {
     setIsLoading(true);
     try {
-      // Busca apenas 8 fontes por vez em lotes menores para garantir estabilidade máxima contra 429
       const selectedSources = [...GLOBAL_SOURCES].sort(() => 0.5 - Math.random()).slice(0, 8);
-
       const allResults = [];
 
       for (let i = 0; i < selectedSources.length; i += 2) {
@@ -115,7 +369,6 @@ const App = () => {
               if (data.status !== 'ok') return [];
 
               return data.items.map(item => {
-                // Algoritmo Avançado de Extração de Imagem
                 let imageUrl = item.enclosure?.link || item.thumbnail || "";
 
                 if (!imageUrl || imageUrl.includes("feedburner")) {
@@ -124,8 +377,19 @@ const App = () => {
                   if (imgMatch && imgMatch[1]) imageUrl = imgMatch[1];
                 }
 
+                // Gera um ID único baseado no link (hash simples)
+                const generateId = (str) => {
+                  let hash = 0;
+                  for (let i = 0; i < str.length; i++) {
+                    const char = str.charCodeAt(i);
+                    hash = ((hash << 5) - hash) + char;
+                    hash = hash & hash;
+                  }
+                  return Math.abs(hash).toString(36);
+                };
+
                 return {
-                  id: item.guid || item.link || Math.random(),
+                  id: generateId(item.link || item.guid || Math.random().toString()),
                   title: item.title,
                   summary: (item.description || "").replace(/<[^>]*>?/gm, '').replace(/&nbsp;/g, ' ').trim().slice(0, 180) + "...",
                   content: item.content || item.description || "Conteúdo não disponível.",
@@ -133,6 +397,7 @@ const App = () => {
                   author: item.author || source.name,
                   source: source.name,
                   time: new Date(item.pubDate || new Date()).toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' }),
+                  date: new Date(item.pubDate || new Date()).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' }).replace(/\//g, '-'),
                   link: item.link,
                   image: imageUrl || `https://images.unsplash.com/photo-1585829365234-781fcdb5c8be?auto=format&fit=crop&q=80&w=800`,
                 };
@@ -143,13 +408,11 @@ const App = () => {
           })
         );
         allResults.push(...batchResults);
-        // Pausa maior de 1.5s entre lotes de apenas 2 fontes para "acalmar" o servidor
         if (i + 2 < selectedSources.length) await new Promise(r => setTimeout(r, 1500));
       }
 
       let flatNews = allResults.flat();
 
-      // Filtro de Publicidade e Ofertas (Ad-Blocker Jornalístico)
       const AD_KEYWORDS = [
         'oferta', 'promoção', 'desconto', 'cupom', 'barato', 'preço', 'comprar',
         'imperdível', 'liquidação', 'economize', 'custando', 'menor valor',
@@ -158,11 +421,9 @@ const App = () => {
 
       flatNews = flatNews.filter(art => {
         const contentToCheck = (art.title + " " + art.summary).toLowerCase();
-        // Se encontrar alguma palavra de propaganda, remove a notícia
         return !AD_KEYWORDS.some(keyword => contentToCheck.includes(keyword));
       });
 
-      // Remove Duplicatas Quase Identificadas (pelo título)
       const seenTitles = new Set();
       flatNews = flatNews.filter(n => {
         const normalized = n.title.toLowerCase().trim();
@@ -171,7 +432,6 @@ const App = () => {
         return true;
       });
 
-      // Roda análise de tendências
       let analyzedNews = analyzeTrends(flatNews);
 
       if (analyzedNews.length === 0) {
@@ -190,7 +450,6 @@ const App = () => {
         }];
       }
 
-      // Define Manchete por Tendência (a que mais aparece em termos de tópicos repetidos)
       analyzedNews.sort((a, b) => b.relevance - a.relevance);
 
       const headline = analyzedNews.find(n => n.image && !n.image.includes("unsplash")) || analyzedNews[0];
@@ -208,19 +467,12 @@ const App = () => {
     }
   };
 
-  const openArticle = (article) => {
-    setScrollPos(window.scrollY);
-    setSelectedArticle(article);
-    setViewMode('article');
-    window.scrollTo(0, 0);
-  };
-
-  const closeArticle = () => {
-    setViewMode('list');
-    setSelectedArticle(null);
-    setTimeout(() => {
-      window.scrollTo(0, scrollPos);
-    }, 50);
+  const toggleInterest = (theme) => {
+    if (interests.includes(theme)) {
+      setInterests(interests.filter(i => i !== theme));
+    } else {
+      setInterests([...interests, theme]);
+    }
   };
 
   useEffect(() => {
@@ -239,211 +491,21 @@ const App = () => {
         style={{ originX: 0 }}
       />
 
-      {viewMode === 'list' ? (
-        <>
-          <header className="max-w-7xl mx-auto px-4 md:px-12 pt-8 pb-4">
-            <div className="flex flex-col md:flex-row justify-between items-center mb-6 border-b border-black pb-2 text-[10px] md:text-xs uppercase tracking-[0.2em] font-bold">
-              <div className="flex items-center gap-4 mb-2 md:mb-0">
-                <span className="flex items-center gap-2 text-red-700 animate-pulse"><Globe className="w-3 h-3" /> Conexão Global Ativa</span>
-                <span className="hidden md:inline">|</span>
-                <span className="flex items-center gap-1">
-                  <Calendar className="w-3 h-3" />
-                  {lastUpdate.toLocaleDateString('pt-PT', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
-                </span>
-              </div>
-              <div className="flex items-center gap-4">
-                <span className="italic font-normal lowercase tracking-normal text-sm text-gray-500">25+ Fontes Monitoradas</span>
-                <span>|</span>
-                <span className="text-black font-black">Gazetta Intelligence</span>
-              </div>
-            </div>
-
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center mb-8">
-              <h1 className="newspaper-title text-7xl md:text-[10rem] leading-none mb-2 select-none">Gazetta</h1>
-              <div className="flex items-center justify-center gap-4 md:gap-12 py-2 border-y-2 border-black mt-4">
-                <span className="hidden sm:block text-[10px] uppercase font-bold tracking-widest flex-1 text-right">Consenso de Informação Digital</span>
-                <div className="text-sm italic font-serif px-8 whitespace-nowrap">"Mundus in notitia"</div>
-                <span className="hidden sm:block text-[10px] uppercase font-bold tracking-widest flex-1 text-left">Curadoria por Frequência de Dados</span>
-              </div>
-            </motion.div>
-
-            <div className="flex flex-wrap justify-between items-center border-b-4 border-black py-3 gap-4 mb-12">
-              <div className="flex items-center gap-3 py-1">
-                <span className="text-[10px] font-black uppercase tracking-tighter bg-black text-white px-2 py-0.5">Top Trends:</span>
-                <div className="flex gap-4 overflow-x-auto no-scrollbar max-w-[500px]">
-                  {["IA", "Brasil", "Tech", "Global", "Economia"].map(t => (
-                    <span key={t} className="text-[10px] font-bold uppercase opacity-60 hover:opacity-100 cursor-default">#{t}</span>
-                  ))}
-                </div>
-              </div>
-              <button onClick={curateNews} className="flex items-center gap-2 text-xs uppercase font-black hover:scale-105 transition-transform" disabled={isLoading}>
-                <RefreshCw className={cn("w-4 h-4", isLoading && "animate-spin")} /> Re-editar Jornal
-              </button>
-            </div>
-          </header>
-
-          <main className="max-w-7xl mx-auto px-4 md:px-12">
-            <AnimatePresence mode="wait">
-              {isLoading && news.length === 0 ? (
-                <div className="py-40 text-center">
-                  <div className="relative inline-block">
-                    <Globe className="w-16 h-16 mx-auto mb-8 animate-spin-slow opacity-20" />
-                    <Zap className="absolute top-0 right-0 w-6 h-6 animate-pulse text-red-700" />
-                  </div>
-                  <p className="text-[10px] uppercase font-black tracking-widest animate-pulse">Cruzando Dados de 25 Fontes...</p>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-12">
-                  <div className="lg:col-span-9">
-                    {news.filter(n => n.featured).map(item => (
-                      <article key={item.id} className="border-b border-gray-400 pb-12 mb-12">
-                        <div className="flex flex-col lg:flex-row gap-10">
-                          <div className="lg:w-7/12 order-2 lg:order-1">
-                            <div className="flex items-center gap-2 mb-4">
-                              <span className="bg-red-700 text-white px-3 py-1 text-[10px] font-bold uppercase tracking-widest">Manchete</span>
-                              {item.isTrending && <span className="flex items-center gap-1 text-[9px] font-black uppercase text-orange-600"><Zap className="w-3 h-3" /> Em Alta</span>}
-                            </div>
-                            <h2 onClick={() => openArticle(item)} className="text-4xl md:text-6xl font-black leading-[1.05] mb-6 hover:underline cursor-pointer decoration-red-700/30 decoration-4">{item.title}</h2>
-                            <p className="text-xl md:text-2xl leading-snug text-gray-800 mb-8 italic first-letter:text-6xl first-letter:font-black first-letter:float-left first-letter:mr-3 first-letter:leading-none first-letter:text-black">{item.summary}</p>
-                            <div className="flex justify-between items-center text-[10px] uppercase font-bold text-gray-600 border-t border-dotted border-gray-400 pt-6">
-                              <span className="flex items-center gap-2"><Globe className="w-3 h-3" /> {item.source} • {item.time}</span>
-                              <div className="flex items-center gap-4">
-                                <span className="text-green-700 flex items-center gap-1"><Sparkles className="w-3 h-3" /> Relevância: {item.relevance}%</span>
-                                <div className="flex gap-4"><Share2 className="w-4 h-4 cursor-pointer" /><Bookmark className="w-4 h-4 cursor-pointer" /></div>
-                              </div>
-                            </div>
-                          </div>
-                          <div className="lg:w-5/12 order-1 lg:order-2">
-                            <div className="border border-black p-1 bg-white shadow-[10px_10px_0px_0px_rgba(0,0,0,1)] group overflow-hidden relative">
-                              <img src={item.image} className="w-full grayscale group-hover:grayscale-0 transition-all duration-1000 group-hover:scale-105" />
-                              <div className="absolute bottom-2 right-2 bg-black text-white text-[8px] px-2 py-0.5 opacity-0 group-hover:opacity-100 transition-opacity">Visualizar Original</div>
-                            </div>
-                          </div>
-                        </div>
-                      </article>
-                    ))}
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-10 gap-y-16">
-                      {news.filter(n => !n.featured).slice(0, 15).map((item, idx) => (
-                        <article key={item.id} className="flex flex-col group">
-                          <div className="mb-6 border border-black p-1 bg-white shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] overflow-hidden h-40 group-hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] group-hover:translate-x-0.5 group-hover:translate-y-0.5 transition-all">
-                            <img src={item.image} className="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all duration-500" />
-                          </div>
-                          <div className="flex items-center gap-2 mb-3">
-                            <span className="text-[10px] font-black uppercase text-red-700 tracking-tighter">{item.category}</span>
-                            <div className="h-px flex-1 bg-gray-300" />
-                          </div>
-                          <h3 onClick={() => openArticle(item)} className="text-xl md:text-2xl font-black leading-tight mb-4 hover:underline cursor-pointer group-hover:text-red-900 transition-colors uppercase">{item.title}</h3>
-                          <p className="text-base leading-relaxed text-gray-700 mb-6 flex-grow">{item.summary}</p>
-                          <div className="flex justify-between items-center text-[11px] uppercase font-bold text-gray-400 pt-3 border-t border-black/10">
-                            <span>{item.source} • {item.time}</span>
-                            <span className={cn("flex items-center gap-1", item.relevance > 90 ? "text-orange-600" : "text-blue-800")}>
-                              <TrendingUp className="w-2.5 h-2.5" /> {item.relevance}%
-                            </span>
-                          </div>
-                        </article>
-                      ))}
-                    </div>
-                  </div>
-
-                  <aside className="lg:col-span-3 space-y-12">
-                    <section className="bg-white border-2 border-black p-6 relative">
-                      <h4 className="flex items-center gap-2 text-[11px] uppercase font-black tracking-widest mb-6 border-b-2 border-black pb-4">
-                        <Zap className="w-4 h-4 text-red-700" /> Buzz de Dados
-                      </h4>
-                      <div className="space-y-6">
-                        {news.slice(15, 20).map(t => (
-                          <div key={t.id} onClick={() => openArticle(t)} className="cursor-pointer group">
-                            <div className="flex justify-between text-[11px] font-black text-gray-400 mb-1">
-                              <span>{t.source}</span>
-                              <span className="text-red-700">ALERT</span>
-                            </div>
-                            <p className="text-base font-bold leading-snug group-hover:underline italic">"{t.title}"</p>
-                          </div>
-                        ))}
-                      </div>
-                    </section>
-
-                    <section className="bg-black text-white p-6 shadow-[12px_12px_0px_0px_rgba(0,0,0,0.1)]">
-                      <h4 className="text-[11px] uppercase font-black tracking-widest mb-6 border-b border-white/20 pb-4">Análise IA: DNA</h4>
-                      <div className="space-y-5">
-                        {interests.slice(0, 4).map(i => (
-                          <div key={i} className="space-y-1">
-                            <div className="flex justify-between text-[10px] font-bold uppercase">
-                              <span>{i}</span>
-                              <span className="text-red-500">{(Math.random() * 20 + 75).toFixed(0)}%</span>
-                            </div>
-                            <div className="h-1 bg-white/10 w-full overflow-hidden">
-                              <motion.div initial={{ width: 0 }} animate={{ width: `${Math.floor(Math.random() * 40 + 60)}%` }} className="h-full bg-red-700" />
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                      <button className="w-full mt-8 border border-white/30 py-2 text-[10px] uppercase font-black hover:bg-white hover:text-black transition-all">Ver Relatório Completo</button>
-                    </section>
-                  </aside>
-                </div>
-              )}
-            </AnimatePresence>
-          </main>
-        </>
-      ) : selectedArticle ? (
-        <div className="min-h-screen bg-[#f4f1ea] relative">
-          <header className="sticky top-0 z-[100] bg-[#f4f1ea]/90 backdrop-blur-md border-b border-black py-4 px-4 md:px-12 flex justify-between items-center">
-            <button
-              onClick={closeArticle}
-              className="flex items-center gap-2 text-[10px] font-black uppercase hover:text-red-700 transition-colors group"
-            >
-              <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
-              <span>Voltar à Edição</span>
-            </button>
-            <h2 className="newspaper-title text-2xl md:text-3xl select-none">Gazetta</h2>
-            <div className="hidden md:flex items-center gap-4 text-[9px] font-black uppercase tracking-widest opacity-60">
-              <span>{selectedArticle.category}</span>
-              <span>•</span>
-              <span className="flex items-center gap-1"><Globe className="w-3 h-3" /> Cobertura Global</span>
-            </div>
-          </header>
-
-          <div className="max-w-4xl mx-auto px-4 py-20">
-            <article className="font-serif">
-              <header className="mb-12 border-b-4 border-black pb-10">
-                <div className="flex items-center gap-3 mb-4">
-                  <span className="text-red-700 font-bold uppercase text-xs tracking-widest">{selectedArticle.category}</span>
-                  {selectedArticle.isTrending && <span className="bg-black text-white px-2 py-0.5 text-[8px] font-black uppercase flex items-center gap-1"><Zap className="w-2.5 h-2.5" /> Viral</span>}
-                </div>
-                <h1 className="text-4xl md:text-7xl font-black leading-[1.05] mb-8 uppercase tracking-tighter">{selectedArticle.title}</h1>
-                <div className="flex justify-between items-center text-[10px] uppercase font-bold text-gray-500 border-t border-black/10 pt-6">
-                  <span className="flex items-center gap-2"><User className="w-3 h-3" /> Correspondente: {selectedArticle.author}</span>
-                  <span>{selectedArticle.time} • Fonte: {selectedArticle.source}</span>
-                </div>
-              </header>
-
-              {selectedArticle.image && (
-                <div className="mb-16 border border-black p-1 bg-white shadow-[20px_20px_0px_0px_rgba(0,0,0,1)]">
-                  <img src={selectedArticle.image} className="w-full grayscale contrast-110 sepia-[0.2]" alt="" />
-                  <div className="mt-4 flex justify-between items-center px-4">
-                    <span className="text-[8px] uppercase font-bold text-gray-400 italic">Arquivo Digital Gazetta Intelligence</span>
-                    <div className="flex gap-4"><Share2 className="w-3 h-3 cursor-pointer" /><Bookmark className="w-3 h-3 cursor-pointer" /></div>
-                  </div>
-                </div>
-              )}
-
-              <div
-                className="text-xl md:text-2xl leading-[1.6] text-gray-800 space-y-10 prose prose-newspaper max-w-none prose-img:hidden"
-                dangerouslySetInnerHTML={{ __html: selectedArticle.content }}
-              />
-
-              <div className="mt-32 pt-16 border-t-4 border-black text-center italic opacity-40">
-                <Newspaper className="w-16 h-16 mx-auto mb-6" />
-                <p className="mb-2 text-sm font-bold not-italic font-sans uppercase tracking-[0.3em]">Gazetta Digital Intelligence</p>
-                <p>&copy; 2026 — Algoritmo de Consenso Global</p>
-                <a href={selectedArticle.link} target="_blank" rel="noreferrer" className="text-[10px] uppercase font-black not-italic hover:underline mt-8 block hover:text-red-700">Verificar Documentação de Origem</a>
-              </div>
-            </article>
-          </div>
-        </div>
-      ) : null}
+      <Routes>
+        <Route path="/" element={
+          <NewsList
+            news={news}
+            isLoading={isLoading}
+            lastUpdate={lastUpdate}
+            showSettings={showSettings}
+            setShowSettings={setShowSettings}
+            curateNews={curateNews}
+            interests={interests}
+            toggleInterest={toggleInterest}
+          />
+        } />
+        <Route path="/article/:id" element={<ArticleView news={news} lastUpdate={lastUpdate} />} />
+      </Routes>
 
       <AnimatePresence>
         {showSettings && (
